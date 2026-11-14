@@ -3,6 +3,21 @@ import {
 } from 'three';
 
 const ray = new Raycaster();
+const pointer = new Vector2();
+
+function occludesQuiz(model) {
+  return model.skin.visible && model.skin.material.opacity === 1;
+}
+
+function frontSurface(camera, model, x, y) {
+  ray.setFromCamera(pointer.set(x, y), camera);
+  return ray.intersectObjects(occludesQuiz(model) ? model.opaqueSurfaces : model.organSurfaces, false)[0];
+}
+
+export function moveQuizAnchor(camera, model, id, x, y) {
+  const hit = frontSurface(camera, model, x, y);
+  if (hit?.object.userData.organId === id) return hit.point;
+}
 
 export function organAnchor(id, parts) {
   // For paired organs, point at one actual mesh, away from the gap between them.
@@ -34,7 +49,6 @@ export function createQuizSurfacePicker() {
   const target = new WebGLRenderTarget(1, 1);
   const meshes = new WeakMap();
   const materials = [new MeshBasicMaterial({ color: 0, toneMapped: false, side: DoubleSide })];
-  const pointer = new Vector2();
   let pixels = new Uint8Array();
 
   function addMesh(source, id) {
@@ -55,7 +69,7 @@ export function createQuizSurfacePicker() {
     scene.add(mesh);
   }
 
-  return (renderer, camera, model, selectedIds, viewWidth, viewHeight) => {
+  return (renderer, camera, model, selectedIds, manualAnchors, viewWidth, viewHeight) => {
     const ids = [...selectedIds];
     if (!ids.length || !viewWidth || !viewHeight) return [];
     const scale = Math.min(1, 384 / Math.max(viewWidth, viewHeight));
@@ -64,10 +78,11 @@ export function createQuizSurfacePicker() {
     if (width !== target.width || height !== target.height) target.setSize(width, height);
     if (pixels.length !== width * height * 4) pixels = new Uint8Array(width * height * 4);
     scene.clear();
-    ids.forEach((id, index) => {
-      for (const part of model.drawables.get(id)) addMesh(part, index + 1);
-    });
-    if (model.skin.visible && model.skin.material.opacity === 1) addMesh(model.skin, 0);
+    const numberById = new Map(ids.map((id, index) => [id, index + 1]));
+    for (const part of model.organSurfaces) {
+      addMesh(part, numberById.get(part.userData.organId) ?? 0);
+    }
+    if (occludesQuiz(model)) addMesh(model.skin, 0);
 
     const previous = renderer.getRenderTarget();
     try {
@@ -79,7 +94,7 @@ export function createQuizSurfacePicker() {
       renderer.setRenderTarget(previous);
     }
 
-    const preferred = ids.map(id => model.anchors.get(id).clone().project(camera));
+    const preferred = ids.map(id => (manualAnchors.get(id) ?? model.anchors.get(id)).clone().project(camera));
     const candidates = ids.map(() => []);
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -101,15 +116,22 @@ export function createQuizSurfacePicker() {
       }
     }
 
-    const visible = ids.flatMap(id => model.drawables.get(id));
-    if (model.skin.visible && model.skin.material.opacity === 1) visible.push(model.skin);
     return ids.map((id, index) => {
       const parts = model.drawables.get(id);
+      const number = index + 1;
+      const color = parts[0].material.color.getStyle();
+      const manual = manualAnchors.get(id);
+      const point = preferred[index];
+      if (manual && Math.abs(point.x) < 1 && Math.abs(point.y) < 1 && Math.abs(point.z) < 1) {
+        const hit = frontSurface(camera, model, point.x, point.y);
+        if (hit?.object.userData.organId === id && hit.point.distanceToSquared(manual) < 1e-8) {
+          return { id, number, point, color };
+        }
+      }
       for (const { ndcX, ndcY } of candidates[index]) {
-        ray.setFromCamera(pointer.set(ndcX, ndcY), camera);
-        const hit = ray.intersectObjects(visible, false)[0];
-        if (hit && parts.includes(hit.object)) {
-          return { number: index + 1, point: hit.point.project(camera), color: parts[0].material.color.getStyle() };
+        const hit = frontSurface(camera, model, ndcX, ndcY);
+        if (hit?.object.userData.organId === id) {
+          return { id, number, point: hit.point.project(camera), color };
         }
       }
       return { number: index + 1 };

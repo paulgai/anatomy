@@ -5,7 +5,7 @@ import { MeshoptDecoder } from './vendor/meshopt_decoder.module.js';
 import { organs, regions } from './organs.js';
 import { splitDigestiveSegments } from './segments.js';
 import { createDetailLoader } from './detail-model.js';
-import { createQuizSurfacePicker, drawQuizOverlay, organAnchor } from './quiz-overlay.js';
+import { createQuizSurfacePicker, drawQuizOverlay, moveQuizAnchor, organAnchor } from './quiz-overlay.js';
 
 const byId = id => document.getElementById(id);
 const viewer = byId('viewer');
@@ -32,12 +32,18 @@ const quizzes = Array.from({ length: 4 }, (_, index) => {
     rows: panel.querySelector('.quiz-regions'),
     preview,
     selection: new Set(),
+    anchorsByModel: new WeakMap(),
   };
 });
 let previewQuiz;
 const pickQuizSurfaces = createQuizSurfacePicker();
 const activeQuiz = () => organCatalog.open ? undefined : quizzes.find(quiz => quiz.details.open) ?? previewQuiz;
 const selectionForModel = quiz => new Set([...quiz.selection].filter(id => activeModel?.drawables.has(id)));
+function manualAnchors(quiz, model) {
+  if (!quiz.anchorsByModel.has(model)) quiz.anchorsByModel.set(model, new Map());
+  return quiz.anchorsByModel.get(model);
+}
+let quizHandles = [];
 const viewButtons = [...document.querySelectorAll('[data-view]')];
 const directions = {
   front: new THREE.Vector3(0, 0, 1),
@@ -115,7 +121,9 @@ function render() {
     renderer.render(scene, camera);
     const quiz = activeQuiz();
     if (quiz && activeModel) {
-      const surfaces = pickQuizSurfaces(renderer, camera, activeModel, selectionForModel(quiz), viewer.clientWidth, viewer.clientHeight);
+      const surfaces = pickQuizSurfaces(renderer, camera, activeModel, selectionForModel(quiz),
+        manualAnchors(quiz, activeModel), viewer.clientWidth, viewer.clientHeight);
+      quizHandles = surfaces.filter(surface => surface.point);
       const hiddenNumbers = drawQuizOverlay(quizOverlay, camera, activeModel.bodyBounds, surfaces, {
         top: viewerControls.offsetTop + viewerControls.offsetHeight,
         bottom: viewer.clientHeight - viewerFooter.offsetTop,
@@ -210,7 +218,9 @@ function queueModel(sex) {
         root.updateMatrixWorld(true);
         const anchors = new Map([...drawables].map(([id, parts]) => [id, organAnchor(id, parts)]));
         const bodyBounds = new THREE.Box3().setFromObject(skin);
-        return { root, skin, materials, drawables, anchors, bodyBounds };
+        const organSurfaces = [...drawables.values()].flat();
+        const opaqueSurfaces = [...organSurfaces, skin];
+        return { root, skin, materials, drawables, anchors, bodyBounds, organSurfaces, opaqueSurfaces };
       })
       .catch(error => {
         cache.delete(sex);
@@ -380,7 +390,7 @@ function updateQuizRows(quiz) {
 function update() {
   const quiz = activeQuiz();
   const quizActive = Boolean(quiz);
-  const quizSelection = quiz && selectionForModel(quiz);
+  quizHandles = [];
   byId('organ-details').hidden = quizActive;
   quizOverlay.hidden = !quizActive;
   if (!quizActive) quizOcclusion.hidden = true;
@@ -391,7 +401,7 @@ function update() {
       const material = activeModel.materials.get(id);
       material.emissive.set(highlighted ? '#b97658' : '#000000');
       material.emissiveIntensity = highlighted ? 0.34 : 0;
-      const shown = quizActive ? quizSelection.has(id) : (isolated ? highlighted : visible.has(id));
+      const shown = quizActive || (isolated ? highlighted : visible.has(id));
       for (const part of parts) part.visible = shown;
     }
   }
@@ -515,6 +525,62 @@ function start() {
   controls.update();
   new ResizeObserver(resize).observe(viewer);
   resize();
+
+  const canvas = renderer.domElement;
+  let anchorDrag;
+  function pointerPosition(event) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: (event.clientX - rect.left) / rect.width * 2 - 1,
+      y: 1 - (event.clientY - rect.top) / rect.height * 2 };
+  }
+  function handleAt(point) {
+    let closest;
+    let distance = 12;
+    for (const handle of quizHandles) {
+      const pixels = Math.hypot((handle.point.x - point.x) * canvas.clientWidth / 2,
+        (handle.point.y - point.y) * canvas.clientHeight / 2);
+      if (pixels < distance) {
+        closest = handle;
+        distance = pixels;
+      }
+    }
+    return closest;
+  }
+
+  // Capture the handle press before OrbitControls starts rotating the model.
+  canvas.addEventListener('pointerdown', event => {
+    const quiz = activeQuiz();
+    if (!quiz || !activeModel || !event.isPrimary || event.button !== 0) return;
+    const point = pointerPosition(event);
+    const handle = handleAt(point);
+    if (!handle) return;
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    anchorDrag = { quiz, model: activeModel, id: handle.id, pointerId: event.pointerId,
+      offsetX: handle.point.x - point.x, offsetY: handle.point.y - point.y };
+    canvas.setPointerCapture(event.pointerId);
+    canvas.classList.add('moving-quiz-anchor');
+  }, true);
+  canvas.addEventListener('pointermove', event => {
+    const point = pointerPosition(event);
+    canvas.classList.toggle('over-quiz-anchor', !anchorDrag && Boolean(handleAt(point)));
+    if (anchorDrag?.pointerId !== event.pointerId) return;
+    const { quiz, model, id, offsetX, offsetY } = anchorDrag;
+    if (quiz !== activeQuiz() || model !== activeModel) return;
+    const position = moveQuizAnchor(camera, model, id, point.x + offsetX, point.y + offsetY);
+    if (!position) return;
+    manualAnchors(quiz, model).set(id, position);
+    render();
+  });
+  function finishAnchorDrag(event) {
+    if (anchorDrag?.pointerId !== event.pointerId) return;
+    anchorDrag = undefined;
+    canvas.classList.remove('moving-quiz-anchor');
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  }
+  canvas.addEventListener('pointerup', finishAnchorDrag);
+  canvas.addEventListener('pointercancel', finishAnchorDrag);
+  canvas.addEventListener('lostpointercapture', finishAnchorDrag);
 
   let pointerStart;
   renderer.domElement.addEventListener('pointerdown', event => {

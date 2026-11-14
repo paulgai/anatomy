@@ -1,3 +1,4 @@
+/.openai/
 .source-assets/
 node_modules/
 *.tar.gz

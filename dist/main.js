@@ -5,6 +5,7 @@ import { MeshoptDecoder } from './vendor/meshopt_decoder.module.js';
 import { organs, regions } from './organs.js';
 import { splitDigestiveSegments } from './segments.js';
 import { createDetailLoader } from './detail-model.js';
+import { drawQuizOverlay, organAnchor } from './quiz-overlay.js';
 
 const byId = id => document.getElementById(id);
 const viewer = byId('viewer');
@@ -12,6 +13,11 @@ const status = byId('status');
 const modelSelect = byId('body');
 const opacity = byId('opacity');
 const search = byId('search');
+const quiz = byId('quiz');
+const quizOverlay = byId('quiz-overlay');
+const viewerControls = viewer.querySelector('.views');
+const viewerFooter = viewer.querySelector('.viewer-bottom');
+const quizSelection = new Set();
 const viewButtons = [...document.querySelectorAll('[data-view]')];
 const directions = {
   front: new THREE.Vector3(0, 0, 1),
@@ -87,6 +93,10 @@ function render() {
   requestAnimationFrame(() => {
     renderPending = false;
     renderer.render(scene, camera);
+    if (quiz.open) drawQuizOverlay(quizOverlay, camera, activeModel, quizSelection, {
+      top: viewerControls.offsetTop + viewerControls.offsetHeight,
+      bottom: viewer.clientHeight - viewerFooter.offsetTop,
+    });
   });
 }
 
@@ -117,6 +127,17 @@ function tissueMaterial(color) {
   return material;
 }
 
+function adjustSmallIntestine(mesh) {
+  // Keep the upper edge in place so the reduced loops open up the pelvis below.
+  mesh.geometry.computeBoundingBox();
+  const bounds = mesh.geometry.boundingBox;
+  const pivot = bounds.getCenter(new THREE.Vector3());
+  pivot.y = bounds.max.y;
+  const offset = pivot.multiply(mesh.scale).applyQuaternion(mesh.quaternion);
+  mesh.position.addScaledVector(offset, 0.1);
+  mesh.scale.multiplyScalar(0.9);
+}
+
 function queueModel(sex) {
   if (!cache.has(sex)) {
     cache.set(sex, loader.loadAsync('./assets/anatomy-' + sex + '.glb')
@@ -132,6 +153,7 @@ function queueModel(sex) {
         });
         splitDigestiveSegments(meshes);
         await Promise.all([attachLungLobes(meshes, sex), attachDetailMeshes(meshes, sex)]);
+        adjustSmallIntestine(meshes.get('small_intestine'));
         const skin = meshes.get('skin');
         if (!skin) throw new Error('Missing skin mesh');
         skin.material = skinMaterial;
@@ -158,7 +180,10 @@ function queueModel(sex) {
           }
           drawables.set(organ.id, parts);
         }
-        return { root, skin, materials, drawables };
+        root.updateMatrixWorld(true);
+        const anchors = new Map([...drawables].map(([id, parts]) => [id, organAnchor(id, parts)]));
+        const bodyBounds = new THREE.Box3().setFromObject(skin);
+        return { root, skin, materials, drawables, anchors, bodyBounds };
       })
       .catch(error => {
         cache.delete(sex);
@@ -189,7 +214,7 @@ function overview(direction = directions.front) {
   }
   bounds.min.y -= 0.11;
   bounds.max.y += 0.13;
-  fit(bounds, direction, 1.15);
+  fit(bounds, direction, quiz.open ? 1.36 : 1.15);
 }
 
 function resize() {
@@ -283,14 +308,60 @@ function updateRows() {
   if (previousFocus) root.querySelector('[data-control="' + CSS.escape(previousFocus) + '"]')?.focus();
 }
 
+function updateQuizRows() {
+  const root = byId('quiz-regions');
+  const previousFocus = root.contains(document.activeElement) ? document.activeElement.dataset.control : undefined;
+  const numbers = new Map([...quizSelection].map((id, index) => [id, index + 1]));
+  const count = byId('quiz-count');
+  count.textContent = numbers.size;
+  count.hidden = !numbers.size;
+  root.replaceChildren();
+  for (const region of regions) {
+    const members = activeOrgans.filter(organ => organ.region === region.id);
+    if (!members.length) continue;
+    const section = document.createElement('section');
+    section.className = 'region';
+    const heading = document.createElement('p');
+    heading.className = 'region-head';
+    heading.textContent = region.label;
+    section.append(heading);
+    for (const organ of members) {
+      const row = document.createElement('label');
+      row.className = 'organ-row quiz-row';
+      const toggle = document.createElement('input');
+      toggle.type = 'checkbox';
+      toggle.dataset.control = organ.id;
+      toggle.checked = numbers.has(organ.id);
+      toggle.addEventListener('change', () => {
+        if (toggle.checked) quizSelection.add(organ.id);
+        else quizSelection.delete(organ.id);
+        update();
+      });
+      const number = document.createElement('span');
+      number.className = 'quiz-number';
+      number.textContent = numbers.get(organ.id) ?? '';
+      number.setAttribute('aria-hidden', 'true');
+      row.append(toggle, organ.name, number);
+      section.append(row);
+    }
+    root.append(section);
+  }
+  if (previousFocus) root.querySelector('[data-control="' + CSS.escape(previousFocus) + '"]')?.focus();
+}
+
 function update() {
+  const quizActive = quiz.open;
+  byId('organ-details').hidden = quizActive;
+  quizOverlay.hidden = !quizActive;
+  viewer.classList.toggle('quiz-active', quizActive);
   if (activeModel) {
     for (const [id, parts] of activeModel.drawables) {
-      const highlighted = id === selected?.id;
+      const highlighted = !quizActive && id === selected?.id;
       const material = activeModel.materials.get(id);
       material.emissive.set(highlighted ? '#b97658' : '#000000');
       material.emissiveIntensity = highlighted ? 0.34 : 0;
-      for (const part of parts) part.visible = isolated ? highlighted : visible.has(id);
+      const shown = quizActive ? quizSelection.has(id) : (isolated ? highlighted : visible.has(id));
+      for (const part of parts) part.visible = shown;
     }
   }
   byId('region-name').textContent = regions.find(region => region.id === selected?.region)?.label ?? 'Εξερεύνηση';
@@ -302,6 +373,7 @@ function update() {
   byId('isolate').setAttribute('aria-pressed', String(isolated));
   byId('isolate').textContent = isolated ? 'Τέλος απομόνωσης' : 'Απομόνωση οργάνου';
   updateRows();
+  updateQuizRows();
   render();
 }
 
@@ -321,6 +393,9 @@ async function switchModel(sex) {
     if (activeModel) scene.remove(activeModel.root);
     activeModel = model;
     activeOrgans = organs.filter(organ => model.drawables.has(organ.id));
+    for (const id of quizSelection) {
+      if (!model.drawables.has(id)) quizSelection.delete(id);
+    }
     if (!activeOrgans.includes(selected)) selected = undefined;
     if (!selected) isolated = false;
     scene.add(model.root);
@@ -337,6 +412,13 @@ async function switchModel(sex) {
 
 byId('sources').addEventListener('click', () => byId('source-dialog').showModal());
 search.addEventListener('input', updateRows);
+quiz.addEventListener('toggle', () => {
+  update();
+  if (quiz.open) {
+    const direction = controls ? camera.position.clone().sub(controls.target).normalize() : directions.front;
+    overview(direction);
+  }
+});
 modelSelect.addEventListener('change', () => { if (renderer) switchModel(modelSelect.value); });
 opacity.addEventListener('input', updateOpacity);
 for (const button of viewButtons) {
@@ -401,7 +483,7 @@ function start() {
   renderer.domElement.addEventListener('pointerup', event => {
     const startPoint = pointerStart;
     pointerStart = undefined;
-    if (!startPoint || !event.isPrimary || event.button !== 0 || !activeModel) return;
+    if (!startPoint || !event.isPrimary || event.button !== 0 || !activeModel || quiz.open) return;
     if (Math.hypot(event.clientX - startPoint[0], event.clientY - startPoint[1]) > 5) return;
     const rect = renderer.domElement.getBoundingClientRect();
     raycaster.setFromCamera(new THREE.Vector2(

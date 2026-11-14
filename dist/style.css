@@ -18,9 +18,21 @@ h1 b{color:var(--accent)}
 .layout{display:grid;grid-template-columns:minmax(210px,248px) minmax(0,1fr) minmax(190px,260px);gap:12px;padding:12px;height:calc(100dvh - 80px);min-height:570px;max-width:1600px;margin:auto}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:auto}
 .panel-top{padding:15px;display:grid;gap:6px}
-.panel-top label,.opacity label{font-size:13px;font-weight:650}
+.panel-top label,.opacity label,.organ-search label{font-size:13px;font-weight:650}
 select,input[type=search]{padding:8px;width:100%;margin-bottom:7px}
-#regions{padding:0 10px 12px}
+#regions,#quiz-regions{padding:0 10px 12px}
+.panel details{margin:0 10px 8px;border:1px solid var(--line);border-radius:8px}
+.study-panel{display:flex;flex-direction:column;padding-bottom:2px}
+.study-panel>.panel-top{flex:none}
+.study-panel>details{flex:none}
+.study-panel>details[open]{flex:0 1 auto;min-height:46px;overflow:auto}
+.panel summary{padding:8px 10px;cursor:pointer;font-weight:650;background:#202d38;border-radius:7px}
+.panel details[open]>summary{position:sticky;top:0;z-index:1;color:var(--accent)}
+.organ-search,.quiz-help{padding:9px 10px}
+.quiz-help{font-size:12px;color:var(--quiet)}
+.quiz-row{min-height:29px;font-size:13px;cursor:pointer}
+.quiz-number,#quiz-count{margin-left:auto;color:var(--accent);font-variant-numeric:tabular-nums}
+#quiz-count{float:right}
 .region{border-top:1px solid var(--line);padding:9px 0}
 .region-head{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:7px;margin:0 5px;font-size:13px;font-weight:700;color:#e2eff3}
 input[type=checkbox],input[type=range]{accent-color:var(--accent)}
@@ -31,6 +43,9 @@ input[type=checkbox],input[type=range]{accent-color:var(--accent)}
 #viewer{position:relative;overflow:hidden;border-radius:14px;border:1px solid var(--line);background:radial-gradient(ellipse at 50% 46%,#2b4150 0%,#172631 58%,#101820 100%)}
 #viewer canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 #viewer canvas:active{cursor:grabbing}
+#viewer #quiz-overlay{pointer-events:none;cursor:inherit}
+#viewer.quiz-active #axes{visibility:hidden}
+.layout:has(#viewer.quiz-active){grid-template-columns:minmax(210px,248px) minmax(0,1fr)}
 .views,.viewer-bottom,#axes,#status{position:absolute;z-index:1}
 .views{display:flex;flex-wrap:wrap;gap:5px;top:12px;left:12px;right:12px}
 .views button{font-size:12px;background:#172530ed}

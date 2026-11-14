@@ -14,16 +14,27 @@
   <button id="sources" type="button">Πηγές &amp; άδειες</button>
 </header>
 <main class="layout">
-  <aside class="panel" aria-label="Κατάλογος οργάνων">
+  <aside class="panel study-panel" aria-label="Κατάλογος οργάνων">
     <div class="panel-top">
       <label for="body">Ανατομικό μοντέλο</label>
       <select id="body"><option value="male">Ανδρικό σώμα</option><option value="female">Γυναικείο σώμα</option></select>
-      <label for="search">Αναζήτηση οργάνου</label>
-      <input id="search" type="search" placeholder="π.χ. πάγκρεας">
     </div>
-    <nav id="regions" aria-label="Ανατομικές περιοχές"></nav>
+    <details name="study-mode" open>
+      <summary>Όργανα</summary>
+      <div class="organ-search">
+        <label for="search">Αναζήτηση οργάνου</label>
+        <input id="search" type="search" placeholder="π.χ. πάγκρεας">
+      </div>
+      <nav id="regions" aria-label="Ανατομικές περιοχές"></nav>
+    </details>
+    <details id="quiz" name="study-mode">
+      <summary>Quiz <span id="quiz-count" hidden></span></summary>
+      <p class="quiz-help">Τσέκαρε τα όργανα με τη σειρά που θέλεις να αριθμηθούν.</p>
+      <div id="quiz-regions"></div>
+    </details>
   </aside>
   <section id="viewer" aria-label="Τρισδιάστατη προβολή">
+    <canvas id="quiz-overlay" aria-hidden="true" hidden></canvas>
     <div class="views" aria-label="Γωνία προβολής">
       <button type="button" data-view="front" aria-pressed="true">Πρόσθια</button>
       <button type="button" data-view="back" aria-pressed="false">Οπίσθια</button>
@@ -37,7 +48,7 @@
       <p class="gesture">Σύρε για περιστροφή · Κύλιση ή δύο δάχτυλα για ζουμ</p>
     </div>
   </section>
-  <aside class="panel details" aria-label="Πληροφορίες οργάνου">
+  <aside id="organ-details" class="panel details" aria-label="Πληροφορίες οργάνου">
     <div class="info" aria-live="polite">
       <p id="region-name">Εξερεύνηση</p>
       <h2 id="organ-name">Επίλεξε ένα όργανο</h2>

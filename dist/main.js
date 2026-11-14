@@ -32,6 +32,7 @@ const quizzes = Array.from({ length: 4 }, (_, index) => {
     rows: panel.querySelector('.quiz-regions'),
     preview,
     selection: new Set(),
+    hiddenOrgans: new Set(),
     anchorsByModel: new WeakMap(),
   };
 });
@@ -364,8 +365,9 @@ function updateQuizRows(quiz) {
     heading.textContent = region.label;
     section.append(heading);
     for (const organ of members) {
-      const row = document.createElement('label');
+      const row = document.createElement('div');
       row.className = 'organ-row quiz-row';
+      const label = document.createElement('label');
       const toggle = document.createElement('input');
       toggle.type = 'checkbox';
       toggle.dataset.control = organ.id;
@@ -379,7 +381,22 @@ function updateQuizRows(quiz) {
       number.className = 'quiz-number';
       number.textContent = numbers.get(organ.id) ?? '';
       number.setAttribute('aria-hidden', 'true');
-      row.append(toggle, organ.name, number);
+      label.append(toggle, organ.name, number);
+      const eye = document.createElement('button');
+      const shown = !quiz.hiddenOrgans.has(organ.id);
+      eye.type = 'button';
+      eye.className = 'quiz-eye';
+      eye.dataset.control = organ.id + '-visibility';
+      eye.setAttribute('aria-label', 'Ορατότητα · ' + organ.name);
+      eye.setAttribute('aria-pressed', String(shown));
+      eye.title = shown ? 'Απόκρυψη οργάνου' : 'Εμφάνιση οργάνου';
+      eye.append(document.createElement('span'));
+      eye.addEventListener('click', () => {
+        if (shown) quiz.hiddenOrgans.add(organ.id);
+        else quiz.hiddenOrgans.delete(organ.id);
+        update();
+      });
+      row.append(label, eye);
       section.append(row);
     }
     root.append(section);
@@ -401,7 +418,7 @@ function update() {
       const material = activeModel.materials.get(id);
       material.emissive.set(highlighted ? '#b97658' : '#000000');
       material.emissiveIntensity = highlighted ? 0.34 : 0;
-      const shown = quizActive || (isolated ? highlighted : visible.has(id));
+      const shown = quizActive ? !quiz.hiddenOrgans.has(id) : (isolated ? highlighted : visible.has(id));
       for (const part of parts) part.visible = shown;
     }
   }
@@ -449,6 +466,26 @@ async function switchModel(sex) {
 }
 
 byId('sources').addEventListener('click', () => byId('source-dialog').showModal());
+const fullscreen = byId('fullscreen');
+if (document.fullscreenEnabled) {
+  fullscreen.hidden = false;
+  document.addEventListener('fullscreenchange', () => {
+    const active = Boolean(document.fullscreenElement);
+    const label = active ? 'Έξοδος από πλήρη οθόνη' : 'Πλήρης οθόνη';
+    fullscreen.setAttribute('aria-pressed', String(active));
+    fullscreen.setAttribute('aria-label', label);
+    fullscreen.title = label;
+    fullscreen.firstElementChild.textContent = active ? '×' : '⛶';
+  });
+  fullscreen.addEventListener('click', async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch (error) {
+      console.warn('Fullscreen unavailable', error);
+    }
+  });
+}
 search.addEventListener('input', updateRows);
 organCatalog.addEventListener('toggle', update);
 for (const quiz of quizzes) {

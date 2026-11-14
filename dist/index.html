@@ -11,7 +11,12 @@
 <body>
 <header class="top">
   <div class="brand"><span class="symbol" aria-hidden="true">✦</span><div><h1>Άτλας Ανατομίας <b>3D</b></h1><p>Θώρακας, κοιλία και πύελος</p></div></div>
-  <button id="sources" type="button">Πηγές &amp; άδειες</button>
+  <div class="top-actions">
+    <button id="sources" type="button">Πηγές &amp; άδειες</button>
+    <button id="fullscreen" type="button" aria-label="Πλήρης οθόνη" aria-pressed="false" title="Πλήρης οθόνη" hidden>
+      <span aria-hidden="true">⛶</span>
+    </button>
+  </div>
 </header>
 <main class="layout">
   <aside class="panel study-panel" aria-label="Κατάλογος οργάνων">
@@ -31,7 +36,7 @@
       <div class="quiz-panel">
         <details name="study-mode">
           <summary><span class="quiz-title"></span><span class="quiz-count" hidden></span></summary>
-          <p class="quiz-help">Τσέκαρε τα όργανα για να προσθέσεις βέλη. Σύρε την κουκκίδα στην αρχή ενός βέλους για να τη μετακινήσεις πάνω στο όργανο.</p>
+          <p class="quiz-help">Τικ για βέλος, μάτι για ορατότητα. Σύρε την κουκκίδα για να μετακινήσεις την αρχή του βέλους.</p>
           <div class="quiz-regions"></div>
         </details>
         <input class="quiz-preview" type="checkbox">
@@ -68,6 +73,7 @@
     </div>
   </aside>
 </main>
+<footer class="copyright"><small>© Maria-Stavroula Belitsou 2026</small></footer>
 <dialog id="source-dialog">
   <form method="dialog"><button type="submit" aria-label="Κλείσιμο">×</button></form>
   <h2>Πηγές &amp; άδειες</h2>

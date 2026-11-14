@@ -11,7 +11,8 @@ function occludesQuiz(model) {
 
 function frontSurface(camera, model, x, y) {
   ray.setFromCamera(pointer.set(x, y), camera);
-  return ray.intersectObjects(occludesQuiz(model) ? model.opaqueSurfaces : model.organSurfaces, false)[0];
+  const surfaces = occludesQuiz(model) ? model.opaqueSurfaces : model.organSurfaces;
+  return ray.intersectObjects(surfaces.filter(surface => surface.visible), false)[0];
 }
 
 export function moveQuizAnchor(camera, model, id, x, y) {
@@ -80,7 +81,7 @@ export function createQuizSurfacePicker() {
     scene.clear();
     const numberById = new Map(ids.map((id, index) => [id, index + 1]));
     for (const part of model.organSurfaces) {
-      addMesh(part, numberById.get(part.userData.organId) ?? 0);
+      if (part.visible) addMesh(part, numberById.get(part.userData.organId) ?? 0);
     }
     if (occludesQuiz(model)) addMesh(model.skin, 0);
 
@@ -118,6 +119,7 @@ export function createQuizSurfacePicker() {
 
     return ids.map((id, index) => {
       const parts = model.drawables.get(id);
+      if (!parts[0].visible) return undefined;
       const number = index + 1;
       const color = parts[0].material.color.getStyle();
       const manual = manualAnchors.get(id);
@@ -135,7 +137,7 @@ export function createQuizSurfacePicker() {
         }
       }
       return { number: index + 1 };
-    });
+    }).filter(Boolean);
   };
 }
 

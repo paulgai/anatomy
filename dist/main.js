@@ -5,7 +5,7 @@ import { MeshoptDecoder } from './vendor/meshopt_decoder.module.js';
 import { organs, regions } from './organs.js';
 import { splitDigestiveSegments } from './segments.js';
 import { createDetailLoader } from './detail-model.js';
-import { drawQuizOverlay, organAnchor } from './quiz-overlay.js';
+import { createQuizSurfacePicker, drawQuizOverlay, organAnchor } from './quiz-overlay.js';
 
 const byId = id => document.getElementById(id);
 const viewer = byId('viewer');
@@ -13,11 +13,31 @@ const status = byId('status');
 const modelSelect = byId('body');
 const opacity = byId('opacity');
 const search = byId('search');
-const quiz = byId('quiz');
+const organCatalog = byId('organ-catalog');
 const quizOverlay = byId('quiz-overlay');
+const quizOcclusion = byId('quiz-occlusion');
 const viewerControls = viewer.querySelector('.views');
 const viewerFooter = viewer.querySelector('.viewer-bottom');
-const quizSelection = new Set();
+const quizTemplate = byId('quiz-template');
+const quizzes = Array.from({ length: 4 }, (_, index) => {
+  const panel = quizTemplate.content.firstElementChild.cloneNode(true);
+  const title = 'Quiz ' + (index + 1);
+  const preview = panel.querySelector('.quiz-preview');
+  panel.querySelector('.quiz-title').textContent = title;
+  preview.setAttribute('aria-label', 'Εμφάνιση βελών · ' + title);
+  quizTemplate.before(panel);
+  return {
+    details: panel.querySelector('details'),
+    count: panel.querySelector('.quiz-count'),
+    rows: panel.querySelector('.quiz-regions'),
+    preview,
+    selection: new Set(),
+  };
+});
+let previewQuiz;
+const pickQuizSurfaces = createQuizSurfacePicker();
+const activeQuiz = () => organCatalog.open ? undefined : quizzes.find(quiz => quiz.details.open) ?? previewQuiz;
+const selectionForModel = quiz => new Set([...quiz.selection].filter(id => activeModel?.drawables.has(id)));
 const viewButtons = [...document.querySelectorAll('[data-view]')];
 const directions = {
   front: new THREE.Vector3(0, 0, 1),
@@ -93,10 +113,17 @@ function render() {
   requestAnimationFrame(() => {
     renderPending = false;
     renderer.render(scene, camera);
-    if (quiz.open) drawQuizOverlay(quizOverlay, camera, activeModel, quizSelection, {
-      top: viewerControls.offsetTop + viewerControls.offsetHeight,
-      bottom: viewer.clientHeight - viewerFooter.offsetTop,
-    });
+    const quiz = activeQuiz();
+    if (quiz && activeModel) {
+      const surfaces = pickQuizSurfaces(renderer, camera, activeModel, selectionForModel(quiz), viewer.clientWidth, viewer.clientHeight);
+      const hiddenNumbers = drawQuizOverlay(quizOverlay, camera, activeModel.bodyBounds, surfaces, {
+        top: viewerControls.offsetTop + viewerControls.offsetHeight,
+        bottom: viewer.clientHeight - viewerFooter.offsetTop,
+      });
+      quizOcclusion.hidden = !hiddenNumbers.length;
+      const hint = 'Εκτός ορατής επιφάνειας · ' + hiddenNumbers.join(', ');
+      if (quizOcclusion.textContent !== hint) quizOcclusion.textContent = hint;
+    }
   });
 }
 
@@ -214,7 +241,7 @@ function overview(direction = directions.front) {
   }
   bounds.min.y -= 0.11;
   bounds.max.y += 0.13;
-  fit(bounds, direction, quiz.open ? 1.36 : 1.15);
+  fit(bounds, direction, activeQuiz() ? 1.36 : 1.15);
 }
 
 function resize() {
@@ -308,13 +335,14 @@ function updateRows() {
   if (previousFocus) root.querySelector('[data-control="' + CSS.escape(previousFocus) + '"]')?.focus();
 }
 
-function updateQuizRows() {
-  const root = byId('quiz-regions');
+function updateQuizRows(quiz) {
+  const root = quiz.rows;
   const previousFocus = root.contains(document.activeElement) ? document.activeElement.dataset.control : undefined;
-  const numbers = new Map([...quizSelection].map((id, index) => [id, index + 1]));
-  const count = byId('quiz-count');
-  count.textContent = numbers.size;
-  count.hidden = !numbers.size;
+  const numbers = new Map([...selectionForModel(quiz)].map((id, index) => [id, index + 1]));
+  quiz.count.textContent = numbers.size;
+  quiz.count.hidden = !numbers.size;
+  quiz.preview.checked = previewQuiz === quiz;
+  if (!quiz.details.open) return;
   root.replaceChildren();
   for (const region of regions) {
     const members = activeOrgans.filter(organ => organ.region === region.id);
@@ -333,8 +361,8 @@ function updateQuizRows() {
       toggle.dataset.control = organ.id;
       toggle.checked = numbers.has(organ.id);
       toggle.addEventListener('change', () => {
-        if (toggle.checked) quizSelection.add(organ.id);
-        else quizSelection.delete(organ.id);
+        if (toggle.checked) quiz.selection.add(organ.id);
+        else quiz.selection.delete(organ.id);
         update();
       });
       const number = document.createElement('span');
@@ -350,9 +378,12 @@ function updateQuizRows() {
 }
 
 function update() {
-  const quizActive = quiz.open;
+  const quiz = activeQuiz();
+  const quizActive = Boolean(quiz);
+  const quizSelection = quiz && selectionForModel(quiz);
   byId('organ-details').hidden = quizActive;
   quizOverlay.hidden = !quizActive;
+  if (!quizActive) quizOcclusion.hidden = true;
   viewer.classList.toggle('quiz-active', quizActive);
   if (activeModel) {
     for (const [id, parts] of activeModel.drawables) {
@@ -373,7 +404,7 @@ function update() {
   byId('isolate').setAttribute('aria-pressed', String(isolated));
   byId('isolate').textContent = isolated ? 'Τέλος απομόνωσης' : 'Απομόνωση οργάνου';
   updateRows();
-  updateQuizRows();
+  for (const entry of quizzes) updateQuizRows(entry);
   render();
 }
 
@@ -393,9 +424,6 @@ async function switchModel(sex) {
     if (activeModel) scene.remove(activeModel.root);
     activeModel = model;
     activeOrgans = organs.filter(organ => model.drawables.has(organ.id));
-    for (const id of quizSelection) {
-      if (!model.drawables.has(id)) quizSelection.delete(id);
-    }
     if (!activeOrgans.includes(selected)) selected = undefined;
     if (!selected) isolated = false;
     scene.add(model.root);
@@ -412,13 +440,26 @@ async function switchModel(sex) {
 
 byId('sources').addEventListener('click', () => byId('source-dialog').showModal());
 search.addEventListener('input', updateRows);
-quiz.addEventListener('toggle', () => {
-  update();
-  if (quiz.open) {
+organCatalog.addEventListener('toggle', update);
+for (const quiz of quizzes) {
+  const fitQuiz = () => {
     const direction = controls ? camera.position.clone().sub(controls.target).normalize() : directions.front;
     overview(direction);
-  }
-});
+  };
+  quiz.details.addEventListener('toggle', () => {
+    update();
+    if (quiz.details.open) fitQuiz();
+  });
+  quiz.preview.addEventListener('change', () => {
+    previewQuiz = quiz.preview.checked ? quiz : undefined;
+    if (previewQuiz) {
+      organCatalog.open = false;
+      for (const entry of quizzes) entry.details.open = false;
+    }
+    update();
+    if (previewQuiz) fitQuiz();
+  });
+}
 modelSelect.addEventListener('change', () => { if (renderer) switchModel(modelSelect.value); });
 opacity.addEventListener('input', updateOpacity);
 for (const button of viewButtons) {
@@ -483,7 +524,7 @@ function start() {
   renderer.domElement.addEventListener('pointerup', event => {
     const startPoint = pointerStart;
     pointerStart = undefined;
-    if (!startPoint || !event.isPrimary || event.button !== 0 || !activeModel || quiz.open) return;
+    if (!startPoint || !event.isPrimary || event.button !== 0 || !activeModel || activeQuiz()) return;
     if (Math.hypot(event.clientX - startPoint[0], event.clientY - startPoint[1]) > 5) return;
     const rect = renderer.domElement.getBoundingClientRect();
     raycaster.setFromCamera(new THREE.Vector2(

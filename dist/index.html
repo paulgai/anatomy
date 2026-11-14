@@ -19,7 +19,7 @@
       <label for="body">Ανατομικό μοντέλο</label>
       <select id="body"><option value="male">Ανδρικό σώμα</option><option value="female">Γυναικείο σώμα</option></select>
     </div>
-    <details name="study-mode" open>
+    <details id="organ-catalog" name="study-mode" open>
       <summary>Όργανα</summary>
       <div class="organ-search">
         <label for="search">Αναζήτηση οργάνου</label>
@@ -27,14 +27,20 @@
       </div>
       <nav id="regions" aria-label="Ανατομικές περιοχές"></nav>
     </details>
-    <details id="quiz" name="study-mode">
-      <summary>Quiz <span id="quiz-count" hidden></span></summary>
-      <p class="quiz-help">Τσέκαρε τα όργανα με τη σειρά που θέλεις να αριθμηθούν.</p>
-      <div id="quiz-regions"></div>
-    </details>
+    <template id="quiz-template">
+      <div class="quiz-panel">
+        <details name="study-mode">
+          <summary><span class="quiz-title"></span><span class="quiz-count" hidden></span></summary>
+          <p class="quiz-help">Τσέκαρε τα όργανα με τη σειρά που θέλεις να αριθμηθούν.</p>
+          <div class="quiz-regions"></div>
+        </details>
+        <input class="quiz-preview" type="checkbox">
+      </div>
+    </template>
   </aside>
   <section id="viewer" aria-label="Τρισδιάστατη προβολή">
     <canvas id="quiz-overlay" aria-hidden="true" hidden></canvas>
+    <p id="quiz-occlusion" hidden></p>
     <div class="views" aria-label="Γωνία προβολής">
       <button type="button" data-view="front" aria-pressed="true">Πρόσθια</button>
       <button type="button" data-view="back" aria-pressed="false">Οπίσθια</button>

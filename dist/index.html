@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101720">
+<title>Άτλας Ανατομίας 3D</title>
+<link rel="stylesheet" href="./style.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="symbol" aria-hidden="true">✦</span><div><h1>Άτλας Ανατομίας <b>3D</b></h1><p>Θώρακας, κοιλία και πύελος</p></div></div>
+  <button id="sources" type="button">Πηγές &amp; άδειες</button>
+</header>
+<main class="layout">
+  <aside class="panel" aria-label="Κατάλογος οργάνων">
+    <div class="panel-top">
+      <label for="body">Ανατομικό μοντέλο</label>
+      <select id="body"><option value="male">Ανδρικό σώμα</option><option value="female">Γυναικείο σώμα</option></select>
+      <label for="search">Αναζήτηση οργάνου</label>
+      <input id="search" type="search" placeholder="π.χ. πάγκρεας">
+    </div>
+    <nav id="regions" aria-label="Ανατομικές περιοχές"></nav>
+  </aside>
+  <section id="viewer" aria-label="Τρισδιάστατη προβολή">
+    <div class="views" aria-label="Γωνία προβολής">
+      <button type="button" data-view="front" aria-pressed="true">Πρόσθια</button>
+      <button type="button" data-view="back" aria-pressed="false">Οπίσθια</button>
+      <button type="button" data-view="side" aria-pressed="false">Πλάγια</button>
+      <button type="button" id="full-body">Ολόκληρο σώμα</button><button type="button" id="reset">Επαναφορά</button>
+    </div>
+    <div id="status" role="status">Φόρτωση ανατομικού μοντέλου…</div>
+    <div id="axes" aria-hidden="true"><span id="axis-left">Δ</span><span id="axis-right">Α</span></div>
+    <div class="viewer-bottom">
+      <div class="opacity"><div><label for="opacity">Διαφάνεια σώματος</label><output id="opacity-value" for="opacity">87%</output></div><input id="opacity" type="range" min="0" max="100" value="87"></div>
+      <p class="gesture">Σύρε για περιστροφή · Κύλιση ή δύο δάχτυλα για ζουμ</p>
+    </div>
+  </section>
+  <aside class="panel details" aria-label="Πληροφορίες οργάνου">
+    <div class="info" aria-live="polite">
+      <p id="region-name">Εξερεύνηση</p>
+      <h2 id="organ-name">Επίλεξε ένα όργανο</h2>
+      <p id="latin" lang="la"></p>
+      <p id="description">Επίλεξε ένα όργανο από τη λίστα ή πάτησέ το πάνω στο μοντέλο για να δεις τη θέση και τη λειτουργία του.</p>
+    </div>
+    <div class="actions">
+      <button type="button" id="focus" disabled>Εστίαση στο όργανο</button>
+      <button type="button" id="isolate" disabled aria-pressed="false">Απομόνωση οργάνου</button>
+      <button type="button" id="show-all">Εμφάνιση όλων</button>
+    </div>
+  </aside>
+</main>
+<dialog id="source-dialog">
+  <form method="dialog"><button type="submit" aria-label="Κλείσιμο">×</button></form>
+  <h2>Πηγές &amp; άδειες</h2>
+  <p>Open Anatomy 3D, με μοντέλα BodyParts3D © Database Center for Life Science (DBCLS), Human Reference Atlas / HuBMAP και επιφάνεια γυναικείου σώματος MakeHuman (CC0). <a href="./assets/ATTRIBUTION.md">Αναλυτική αναφορά προέλευσης</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></p>
+  <p>Το ανδρικό δέρμα και τα λεπτομερέστερα πλέγματα των πεπτικών οργάνων προέρχονται από το BodyParts3D 4.3. Η εφαρμογή των οργάνων στο γυναικείο σώμα είναι προσεγγιστική. <a href="./assets/BODYPARTS-DETAIL.txt">Αναφορά προέλευσης και άδεια</a></p>
+  <p>Λοβοί πνευμόνων από Z-Anatomy / BodyParts3D μέσω Anatria3D, με εξαγωγή και χωρική προσαρμογή. Η προσαρμογή στο γυναικείο σώμα είναι προσεγγιστική. <a href="./assets/LUNG-NOTICE.txt">Αναφορά προέλευσης</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a></p>
+  <p>Η εφαρμογή προσθέτει διαδικαστική υφή και χρωματισμό για την εκπαιδευτική προβολή.</p>
+  <p><a href="./vendor/LICENSE-three.txt">Three.js</a> · <a href="./vendor/LICENSE-meshoptimizer.txt">meshoptimizer</a></p>
+</dialog>
+<noscript>Ενεργοποίησε τη JavaScript για την τρισδιάστατη προβολή.</noscript>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
+

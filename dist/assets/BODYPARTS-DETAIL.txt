@@ -1,0 +1,16 @@
+BodyParts3D / Anatomography 4.3 — © The Database Center for Life Science (DBCLS).
+https://dbarchive.biosciencedbc.jp/en/bodyparts3d/desc.html
+
+Source OBJ files
+https://github.com/olivercase/body_parts_3d_api/tree/fd527e6f4daf732fd814314d9257df5877b844bc/meshes
+
+The adaptation bodyparts-detail.glb is available under Creative Commons
+Attribution-ShareAlike 4.0 International.
+https://creativecommons.org/licenses/by-sa/4.0/
+The source archive cites Creative Commons Attribution-ShareAlike 2.1 Japan.
+https://creativecommons.org/licenses/by-sa/2.1/jp/
+
+Changes: selected and grouped the skin and digestive meshes, converted their
+coordinates from millimetres / Z-up to metres / Y-up, and packaged them as glTF.
+The viewer computes normals and fits the digestive surfaces to the previously
+positioned organs of the female atlas.

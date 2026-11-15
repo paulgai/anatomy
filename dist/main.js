@@ -13,6 +13,7 @@ const status = byId('status');
 const modelSelect = byId('body');
 const opacity = byId('opacity');
 const search = byId('search');
+const organTransparency = new Map();
 const organCatalog = byId('organ-catalog');
 const quizOverlay = byId('quiz-overlay');
 const quizOcclusion = byId('quiz-occlusion');
@@ -286,6 +287,37 @@ function normalized(text) {
   return text.toLocaleLowerCase('el').normalize('NFD').replace(/\p{M}/gu, '').replaceAll('ς', 'σ');
 }
 
+function applyOrganTransparency(id, shown) {
+  const material = activeModel.materials.get(id);
+  const transparency = organTransparency.get(id) ?? 0;
+  material.opacity = 1 - transparency / 100;
+  material.transparent = transparency > 0;
+  material.depthWrite = transparency === 0;
+  for (const part of activeModel.drawables.get(id)) part.visible = shown && transparency < 100;
+}
+
+function organTransparencySlider(organ) {
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.className = 'organ-transparency';
+  slider.dataset.control = organ.id + '-transparency';
+  slider.min = '0';
+  slider.max = '100';
+  slider.step = '1';
+  slider.value = String(organTransparency.get(organ.id) ?? 0);
+  slider.setAttribute('aria-label', 'Διαφάνεια · ' + organ.name);
+  slider.addEventListener('input', () => {
+    organTransparency.set(organ.id, Number(slider.value));
+    const quiz = activeQuiz();
+    const shown = quiz ? !quiz.hiddenOrgans.has(organ.id)
+      : (isolated ? selected === organ : visible.has(organ.id));
+    applyOrganTransparency(organ.id, shown);
+    quizHandles = [];
+    render();
+  });
+  return slider;
+}
+
 function updateRows() {
   const root = byId('regions');
   const previousFocus = document.activeElement?.dataset.control;
@@ -339,7 +371,7 @@ function updateRows() {
       swatch.style.background = organ.color;
       button.append(swatch, organ.name);
       row.append(toggle, button);
-      section.append(row);
+      section.append(row, organTransparencySlider(organ));
     }
     root.append(section);
   }
@@ -398,7 +430,7 @@ function updateQuizRows(quiz) {
         update();
       });
       row.append(label, eye);
-      section.append(row);
+      section.append(row, organTransparencySlider(organ));
     }
     root.append(section);
   }
@@ -414,13 +446,12 @@ function update() {
   if (!quizActive) quizOcclusion.hidden = true;
   viewer.classList.toggle('quiz-active', quizActive);
   if (activeModel) {
-    for (const [id, parts] of activeModel.drawables) {
+    for (const [id, material] of activeModel.materials) {
       const highlighted = !quizActive && id === selected?.id;
-      const material = activeModel.materials.get(id);
       material.emissive.set(highlighted ? '#b97658' : '#000000');
       material.emissiveIntensity = highlighted ? 0.34 : 0;
       const shown = quizActive ? !quiz.hiddenOrgans.has(id) : (isolated ? highlighted : visible.has(id));
-      for (const part of parts) part.visible = shown;
+      applyOrganTransparency(id, shown);
     }
   }
   byId('region-name').textContent = regions.find(region => region.id === selected?.region)?.label ?? 'Εξερεύνηση';

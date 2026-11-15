@@ -190,6 +190,7 @@ function queueModel(sex) {
         splitDigestiveSegments(meshes);
         await Promise.all([attachLungLobes(meshes, sex), attachDetailMeshes(meshes, sex)]);
         adjustSmallIntestine(meshes.get('small_intestine'));
+        meshes.get('pancreas').position.y += 0.01; // The model uses metres with Y up.
         const skin = meshes.get('skin');
         if (!skin) throw new Error('Missing skin mesh');
         skin.material = skinMaterial;
